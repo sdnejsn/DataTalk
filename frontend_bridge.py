@@ -1,4 +1,5 @@
 import atexit
+import tempfile
 import threading
 from pathlib import Path
 
@@ -7,6 +8,8 @@ import pandas as pd
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+from datatalk.charts import CHART_COLORS, CHART_RC, english_column_labels, validate_chart_text
 
 
 class FrontendBridge:
@@ -99,11 +102,17 @@ class FrontendBridge:
         artifacts = payload.get("artifacts") or []
         if not isinstance(artifacts, (list, tuple)):
             artifacts = []
-        plots = [str(path) for path in artifacts if Path(str(path)).is_file() and Path(str(path)).suffix.lower() == ".png"]
+        plots = [
+            str(path)
+            for path in artifacts
+            if Path(str(path)).is_file() and Path(str(path)).suffix.lower() == ".png"
+        ]
         status = "Completed" if success else "Failed"
         metadata = f"{status} | {provider} / {model} | Run: {run_id[:8] or 'N/A'}"
         if success:
-            text = stdout.strip() or ("The analysis generated a chart." if plots else "Execution completed.")
+            text = stdout.strip() or (
+                "The analysis generated a chart." if plots else "Execution completed."
+            )
         else:
             text = f"Analysis failed: {error or 'No error details provided.'}"
         return {
@@ -127,7 +136,10 @@ class FrontendBridge:
         FrontendBridge._validate_question(question, frame)
         numeric = frame.select_dtypes(include="number")
         if numeric.empty:
-            summary = f"Rows: {len(frame):,}\nColumns: {len(frame.columns):,}\nNo numeric columns are available for a summary chart."
+            summary = (
+                f"Rows: {len(frame):,}\nColumns: {len(frame.columns):,}\n"
+                "No numeric columns are available for a summary chart."
+            )
             return {
                 "success": True,
                 "message": summary,
@@ -140,24 +152,49 @@ class FrontendBridge:
             }
         totals = numeric.sum(numeric_only=True)
         selected = totals.head(8)
-        fig, ax = plt.subplots(figsize=(9, 4.2))
-        ax.bar([str(label) for label in selected.index], selected.to_numpy(dtype=float))
-        ax.set_ylabel("Total")
-        ax.set_title("Numeric column totals")
-        ax.tick_params(axis="x", labelrotation=25)
-        fig.tight_layout()
-        import tempfile
-
+        labels = english_column_labels(selected.index)
         output_dir = Path(tempfile.mkdtemp(prefix="datatalk-demo-"))
         chart_path = output_dir / "summary.png"
-        fig.savefig(chart_path, dpi=150)
-        plt.close(fig)
+        with plt.rc_context(CHART_RC):
+            fig, ax = plt.subplots()
+            try:
+                bars = ax.bar(
+                    labels,
+                    selected.to_numpy(dtype=float),
+                    width=0.58,
+                    color=CHART_COLORS[0],
+                    zorder=3,
+                )
+                ax.set_ylabel("Total")
+                ax.set_title("Numeric column totals")
+                ax.margins(y=0.18)
+                ax.bar_label(bars, fmt="{:,.2f}", padding=6, fontsize=10, color="#475569")
+                if any(len(label) > 14 for label in labels) or len(labels) > 4:
+                    plt.setp(ax.get_xticklabels(), rotation=25, ha="right")
+                validate_chart_text(fig)
+                fig.tight_layout(pad=1.6)
+                fig.savefig(chart_path)
+            finally:
+                plt.close(fig)
         summary = "Offline demo only. The question was not interpreted by an AI model.\n\n"
-        summary += f"Rows: {len(frame):,} | Columns: {len(frame.columns):,}\n\nNumeric totals:\n{totals.to_string()}"
+        summary += (
+            f"Rows: {len(frame):,} | Columns: {len(frame.columns):,}\n\n"
+            f"Numeric totals:\n{totals.to_string()}"
+        )
+        mappings = [
+            f"{label} = {original}"
+            for label, original in zip(labels, selected.index, strict=True)
+            if label != str(original)
+        ]
+        if mappings:
+            summary += "\n\nChart label mapping:\n" + "\n".join(mappings)
         return {
             "success": True,
             "message": summary,
-            "code": 'numeric = df.select_dtypes(include="number")\nprint(numeric.sum(numeric_only=True))',
+            "code": (
+                'numeric = df.select_dtypes(include="number")\n'
+                "print(numeric.sum(numeric_only=True))"
+            ),
             "plots": [str(chart_path)],
             "status": "Offline demo | Local descriptive summary | No model request",
             "attempts": [],
