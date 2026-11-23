@@ -1,0 +1,20 @@
+{
+  "source": "https://archive.ics.uci.edu/dataset/352/online+retail",
+  "doi": "10.24432/C5BW33",
+  "creator": "Daqing Chen",
+  "license": "CC BY 4.0",
+  "selection": "First 100000 worksheet data rows in original order; all 8 columns; no cleaning",
+  "rows": 100000,
+  "columns": [
+    "InvoiceNo",
+    "StockCode",
+    "Description",
+    "Quantity",
+    "InvoiceDate",
+    "UnitPrice",
+    "CustomerID",
+    "Country"
+  ],
+  "csv_bytes": 8772627,
+  "sha256": "f3c5be1f1706f1033f4e7ce28b9312f613d7fdfdf6a327320f7230a49177bdbc"
+}
