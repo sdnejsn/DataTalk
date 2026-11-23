@@ -15,10 +15,22 @@ Print every numeric/table answer with labels and units, using all applicable row
 of df. Do not substitute metadata/sample rows for the full dataset or invent results.
 For dates, explicitly use pd.to_datetime with an appropriate format/error policy.
 For plots, include title, axes, tight_layout(), and plt.savefig('output.png').
+All text inside charts MUST be in English, even when the question is in Chinese.
+This includes figure titles, subplot titles, axes, category ticks, legends,
+annotations, colorbar labels and table headings/cells. Keep df column names intact
+for calculations; translate their display labels and categorical values for plots.
+Use accurate English translations; if a category cannot be translated reliably,
+use a stable English alias (e.g. Category 1) and print its original-value mapping.
+The workspace already configures an indigo/teal/violet color cycle, white background,
+subtle horizontal grid, left-aligned bold titles and muted gray labels. Inherit this
+theme; do not call style.use(), rcdefaults() or override fonts/backgrounds. Use clear
+spacing, readable labels and an approximately 9 by 4.8 inch figure for a single plot.
+For heatmaps or pies turn off irrelevant grid lines. For horizontal bars, use an
+x-axis grid instead. Avoid heavy borders, overcrowded ticks and unnecessary colors.
 Do not use plt.show(). Do not invent missing columns or silently change the question.
 If the request cannot be answered with the available data, raise ValueError with a
 clear explanation. You may copy df; changes are discarded after each attempt.
-The printed result should use the same language as the question.
+The printed result should use the same language as the question; chart text is English.
 On a failed tool result, correct the code and call execute_python again.
 """
 

@@ -4,7 +4,6 @@ import gradio as gr
 
 from frontend_bridge import FrontendBridge
 
-
 bridge = FrontendBridge()
 
 STYLE = """
@@ -13,8 +12,14 @@ STYLE = """
 #hero h1 {font-size: 36px; font-weight: 800; letter-spacing: -.035em; margin-bottom: 5px;}
 #hero p {color: var(--body-text-color-subdued); font-size: 15px;}
 #workspace {gap: 16px;}
-#left-panel, #right-panel {border: 1px solid var(--border-color-primary); border-radius: 14px; padding: 18px;}
+#left-panel, #right-panel {
+    border: 1px solid var(--border-color-primary); border-radius: 14px; padding: 18px;
+}
 #run-button {min-height: 46px;}
+#chart-gallery {border-radius: 12px; background: white; border: 1px solid #e2e8f0;}
+#chart-gallery .image-frame, #chart-gallery .grid-wrap {background: white;}
+#chart-gallery .thumbnail-item {aspect-ratio: 15 / 8 !important;}
+#chart-gallery .grid-container {padding-top: 38px !important;}
 #footer-note {font-size: 12px; color: var(--body-text-color-subdued);}
 """
 
@@ -73,17 +78,27 @@ def reset_results():
 
 
 def clear_dataset():
-    return None, None, None, bridge.schema(None), "No dataset loaded", gr.update(interactive=False), *reset_results()
+    return (
+        None,
+        None,
+        None,
+        bridge.schema(None),
+        "No dataset loaded",
+        gr.update(interactive=False),
+        *reset_results(),
+    )
 
 
 def build_app():
-    with gr.Blocks(title="DataTalk | Data Analysis Workspace", css=STYLE, theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(
+        title="DataTalk | Data Analysis Workspace", css=STYLE, theme=gr.themes.Soft()
+    ) as demo:
         frame_state = gr.State(value=None)
         history_state = gr.State(value=[])
 
         gr.HTML(
             '<div id="hero"><h1>DataTalk</h1><p>Ask questions about your CSV data. '
-            'Generate Python analysis and visualize results in one workspace.</p></div>'
+            "Generate Python analysis and visualize results in one workspace.</p></div>"
         )
 
         with gr.Row(elem_id="workspace", equal_height=False):
@@ -107,25 +122,47 @@ def build_app():
                     choices=["Live backend", "Offline demo"],
                     value="Live backend",
                     label="Execution mode",
-                    info="Offline demo shows local summary statistics and does not interpret the question.",
+                    info=(
+                        "Offline demo shows local summary statistics "
+                        "and does not interpret the question."
+                    ),
                 )
-                run_button = gr.Button("Analyze dataset", variant="primary", interactive=False, elem_id="run-button")
+                run_button = gr.Button(
+                    "Analyze dataset", variant="primary", interactive=False, elem_id="run-button"
+                )
                 clear_button = gr.Button("Reset workspace", variant="secondary")
             with gr.Column(scale=7, min_width=360, elem_id="right-panel"):
                 gr.Markdown("### Analysis")
                 run_status = gr.Markdown("Ready")
-                result_text = gr.Textbox(label="Execution output", interactive=False, lines=7, max_lines=18)
-                gallery = gr.Gallery(label="Generated charts", columns=2, object_fit="contain", height=340, preview=True)
+                result_text = gr.Textbox(
+                    label="Execution output", interactive=False, lines=7, max_lines=18
+                )
+                gallery = gr.Gallery(
+                    label="Generated charts",
+                    columns=1,
+                    rows=1,
+                    object_fit="contain",
+                    height=420,
+                    preview=True,
+                    elem_id="chart-gallery",
+                    buttons=["download", "fullscreen"],
+                )
                 with gr.Accordion("Generated Python code", open=False):
                     code = gr.Code(label="Code", language="python", interactive=False, lines=12)
                 with gr.Accordion("Conversation history", open=False):
                     chatbot = gr.Chatbot(label="Session questions and results", height=280)
                 with gr.Accordion("Execution diagnostics", open=False):
-                    diagnostics = gr.Code(label="Attempts and execution metadata", language="json", interactive=False, lines=10)
+                    diagnostics = gr.Code(
+                        label="Attempts and execution metadata",
+                        language="json",
+                        interactive=False,
+                        lines=10,
+                    )
 
         gr.Markdown(
             "Local course prototype. Uploaded data is processed locally by the backend. "
-            "Questions and schema metadata may be sent to the selected model provider in live mode.",
+            "Questions and schema metadata may be sent to the selected model provider "
+            "in live mode.",
             elem_id="footer-note",
         )
         file_upload.change(
@@ -142,7 +179,20 @@ def build_app():
         )
         clear_button.click(
             clear_dataset,
-            outputs=[file_upload, frame_state, preview, schema, file_status, run_button, chatbot, result_text, gallery, code, run_status, diagnostics],
+            outputs=[
+                file_upload,
+                frame_state,
+                preview,
+                schema,
+                file_status,
+                run_button,
+                chatbot,
+                result_text,
+                gallery,
+                code,
+                run_status,
+                diagnostics,
+            ],
         ).then(lambda: [], outputs=[history_state])
     return demo
 

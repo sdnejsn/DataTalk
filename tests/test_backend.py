@@ -84,6 +84,23 @@ def test_error_feedback_and_fresh_dataframe(tmp_path, df):
     assert df["sales"].tolist() == [10, 20, 40]
 
 
+def test_chart_language_failure_uses_normal_correction_loop(tmp_path, df):
+    generator = ScriptedGenerator(
+        "plt.bar(['类别'], [70])\nplt.title('总销售额')\nplt.savefig('output.png')",
+        "plt.bar(['All categories'], [df['sales'].sum()])\n"
+        "plt.title('Total sales')\nplt.ylabel('Sales')\n"
+        "plt.tight_layout()\nplt.savefig('output.png')",
+    )
+    result = AnalysisEngine(Settings(output_dir=tmp_path), generator=generator).analyze(
+        "画销售总额图", df
+    )
+    assert result.success and result.retry_count == 1
+    assert "Chart text must be in English" in result.attempts[0].error
+    assert result.attempts[0].artifacts == []
+    assert len(result.artifacts) == 1
+    assert "Chart text must be in English" in generator.messages[1][-1]["content"]
+
+
 def test_correction_limit_and_no_failed_charts(tmp_path, df):
     code = "plt.plot([1, 2])\nplt.savefig('partial.png')\nraise ValueError('still wrong')"
     generator = ScriptedGenerator(code, code, code)

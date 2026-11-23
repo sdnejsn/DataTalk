@@ -4,3 +4,6 @@
 *.md text eol=lf
 *.csv text eol=lf
 uv.lock text eol=lf
+
+# Preserve the exact source bytes recorded in the dataset manifest.
+examples/online_retail_100000.csv -text !eol

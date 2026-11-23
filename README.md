@@ -1,8 +1,8 @@
 # DataTalk
 
-基于多厂商 Tool Calling 与本地 Python 执行的数据分析后端。输入自然语言问题和 Pandas DataFrame，输出计算结果、图表文件、生成代码及执行记录。
+DataTalk 通过多厂商 Tool Calling 与本地 Python 执行分析 CSV 或 Pandas DataFrame，输出计算结果、图表、生成代码和执行记录。可通过 Gradio 界面、命令行或 Python 接口使用。
 
-当前范围为后端核心模块：模型接入、Prompt、代码执行和错误修正。Gradio 界面、正式评估数据集和课程展示材料由上层项目集成。
+当前版本为 `v0.2.0`。详见 [版本记录](CHANGELOG.md) 和 [项目架构](ARCHITECTURE.md)。
 
 ## 功能
 
@@ -13,6 +13,7 @@
 - 每次执行重新载入原始数据，避免失败尝试修改数据后影响后续结果。
 - 返回统一结果对象，记录首次执行状态、重试次数、代码、耗时与 Token 用量。
 - 每个请求使用独立输出目录，避免多次分析覆盖图表。
+- 实时分析和离线演示使用统一的图表样式。网页图表支持下载和全屏。
 
 ## 处理流程
 
@@ -54,12 +55,32 @@ API_MODEL=
 
 `.env`、`.venv`、运行输出、个人数据目录和本地 PDF 已加入 `.gitignore`。真实 Key 不应写入源码或 `.env.example`。
 
+## Gradio 网页演示
+
+完成基础安装后，安装本版本验证过的 Gradio 并启动页面。
+
+```bash
+uv pip install "gradio==6.31.0"
+uv run --no-sync python app.py
+```
+
+打开终端显示的本地地址，上传示例 CSV。选择 **Live backend** 可使用已配置的模型提出分析问题。选择 **Offline demo** 可在没有 API Key 的情况下查看数值列汇总图。
+
+### UCI Online Retail 演示数据
+
+仓库提供 [online_retail_100000.csv](examples/online_retail_100000.csv)。CSV 保留原始工作表顺序中的前 100,000 条记录及全部 8 个字段，时间范围为 2010-12-01 至 2011-02-23。转换为 UTF-8 CSV 时保留缺失值和退货记录。文件大小及 SHA-256 见 [数据清单](examples/online_retail_100000.manifest.json)。
+
+DataTalk 演示可使用这条问题：筛选 `Quantity > 0`、`UnitPrice > 0` 且 `InvoiceNo` 不以 `C` 开头的记录，按 `Quantity × UnitPrice` 计算总营收（GBP），画出每日营收趋势，并列出英国以外营收最高的 5 个市场。
+
+数据署名为 Chen, D. (2015). *Online Retail*. UCI Machine Learning Repository. DOI: 10.24432/C5BW33. 数据以 CC BY 4.0 授权，当前文件为从原工作表截取并转换的演示子集。[UCI 数据页](https://archive.ics.uci.edu/dataset/352/online+retail) · [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+
 ## 命令行
 
 查看 CSV 元数据，无需 Key，也不会调用 API：
 
 ```powershell
 uv run datatalk inspect --csv examples/sales.csv
+uv run datatalk inspect --csv examples/online_retail_100000.csv
 ```
 
 执行分析，会调用已配置的模型厂商并产生相应费用：
@@ -176,7 +197,7 @@ outputs/<run_id>/
 | `DATATALK_MAX_CSV_MB` | `20` | CSV 文件大小限制，单位 MiB |
 | `DATATALK_MAX_ROWS` | `100000` | 行数上限 |
 
-另有 200 列上限、元数据 40000 字符上限、问题 8000 字符上限、代码 30000 字符上限和单次最多 5 张 PNG 的限制。DataFrame 深度内存用量上限为 CSV 大小配置的 10 倍。绘图会优先选择本机已安装的微软雅黑、黑体或 Noto CJK 字体；没有中文字体时可能出现缺字警告。
+另有 200 列上限、元数据 40000 字符上限、问题 8000 字符上限、代码 30000 字符上限和单次最多 5 张 PNG 的限制。DataFrame 深度内存用量上限为 CSV 大小配置的 10 倍。图表使用 Matplotlib 自带的 DejaVu Sans 字体。实时模式要求图内文字使用英文，检测到中日韩文字时通过原有纠错流程反馈给模型。
 
 ## 测试与验证范围
 
@@ -184,6 +205,8 @@ outputs/<run_id>/
 uv run pytest -q
 uv run ruff check .
 ```
+
+安装 Gradio 后可用 `uv run --no-sync pytest tests frontend_tests -q` 同时运行后端和前端测试。
 
 自动化测试使用预设模型返回内容或模拟 API 响应，不需要 Key、不会产生 API 费用。真实子进程测试覆盖数值计算、PNG 生成、错误反馈、重试上限、数据恢复、请求目录隔离、执行超时及部分受限操作；适配器测试检查工具调用参数和异常响应处理。
 
@@ -206,11 +229,14 @@ src/datatalk/
 ├── llm.py          # OpenAI 兼容 API 适配
 ├── policy.py       # 基础代码约束
 ├── _worker.py      # 单次 Python 执行进程
+├── charts.py       # 共用样式、显示名称与图中文字检查
 ├── executor.py     # 子进程管理与图表路径校验
 ├── engine.py       # 分析与错误修正流程
 ├── models.py       # 结果与尝试记录
 └── cli.py          # 命令行入口
-examples/           # 合成数据与接口调用示例
+app.py              # Gradio 分析页面
+frontend_bridge.py  # CSV 上传、结果适配和离线汇总
+examples/           # 合成样例、UCI Online Retail 演示子集和接口示例
 tests/              # 无真实 API 调用的自动化测试
 ```
 

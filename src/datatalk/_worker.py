@@ -17,8 +17,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-from matplotlib import font_manager  # noqa: E402
 
+from datatalk.charts import CHART_RC, validate_chart_text  # noqa: E402
 from datatalk.policy import ALLOWED_MODULES, is_prohibited_attribute, validate_code  # noqa: E402
 
 MAX_OUTPUT = 32_000
@@ -35,7 +35,7 @@ class BoundedOutput(io.StringIO):
 def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
     if level or name not in ALLOWED_MODULES:
         raise ImportError(f"Module is not permitted: {name}")
-    if any(is_prohibited_attribute(part) or part == "*" for part in fromlist):
+    if any(is_prohibited_attribute(part) or part == "*" for part in (fromlist or ())):
         raise ImportError("Private, file-access and wildcard imports are prohibited")
     return builtins.__import__(name, globals, locals, fromlist, level)
 
@@ -49,10 +49,7 @@ def main() -> None:
     try:
         validate_code(payload["code"])
         df = pd.read_pickle(payload["data_path"])
-        font_names = {font.name for font in font_manager.fontManager.ttflist}
-        candidates = ["Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "DejaVu Sans"]
-        plt.rcParams["font.sans-serif"] = [name for name in candidates if name in font_names]
-        plt.rcParams["axes.unicode_minus"] = False
+        plt.rcParams.update(CHART_RC)
         original_savefig = matplotlib.figure.Figure.savefig
 
         def checked_savefig(figure, fname, *args, **kwargs):
@@ -61,6 +58,7 @@ def main() -> None:
                 raise ValueError("Use a plain PNG filename such as output.png")
             if len(artifacts) >= 5:
                 raise ValueError("At most five chart files are permitted per attempt")
+            validate_chart_text(figure)
             original_savefig(figure, filename, *args, **kwargs)
             if filename not in artifacts:
                 artifacts.append(filename)
