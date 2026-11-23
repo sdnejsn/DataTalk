@@ -73,10 +73,18 @@ def test_backend_failure_and_artifact_filter(tmp_path):
     png = tmp_path / "output.png"
     png.write_bytes(b"fake")
     output = FrontendBridge._format_result(
-        {"success": True, "stdout": "", "artifacts": [str(png), str(tmp_path / "missing.png")], "code": "", "provider": "mock"}
+        {
+            "success": True,
+            "stdout": "",
+            "artifacts": [str(png), str(tmp_path / "missing.png")],
+            "code": "",
+            "provider": "mock",
+        }
     )
     assert output["plots"] == [str(png)]
-    error = FrontendBridge._format_result({"success": False, "error": "No tool call", "artifacts": []})
+    error = FrontendBridge._format_result(
+        {"success": False, "error": "No tool call", "artifacts": []}
+    )
     assert "No tool call" in error["message"]
 
 
@@ -86,6 +94,19 @@ def test_offline_demo_is_labeled(tmp_path):
     assert result["success"]
     assert "question was not interpreted" in result["message"]
     assert Path(result["plots"][0]).is_file()
+
+
+def test_offline_chinese_columns_have_english_labels_without_glyph_warnings(recwarn):
+    data = pd.DataFrame({"销售额": [5, 8], "自定义指标": [2, 3], "利润": [-2, 3]})
+    original = data.copy(deep=True)
+    result = FrontendBridge.offline_demo("统计数据", data)
+    assert result["success"]
+    assert "Sales = 销售额" in result["message"]
+    assert "Column 2 = 自定义指标" in result["message"]
+    assert "Profit = 利润" in result["message"]
+    assert Path(result["plots"][0]).is_file()
+    assert not any("Glyph" in str(warning.message) for warning in recwarn)
+    pd.testing.assert_frame_equal(data, original)
 
 
 def test_callbacks_and_gradio_build(tmp_path):
